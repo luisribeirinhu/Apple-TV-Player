@@ -32,7 +32,7 @@ struct LiveTVViewModelTests {
         #expect(vm.favoriteChannel(at: 0)?.title == "Two")
         // Allow the queued persistence write to complete before constructing the next session.
         await vm.flushPreferences()
-        await service.replace([playlist([stream("Two"), stream("One")])])
+        service.replace([playlist([stream("Two"), stream("One")])])
         let restored = LiveTVViewModel(player: player())
         await restored.load(content)
         #expect(restored.favoriteChannel(at: 0)?.title == "Two")
@@ -90,7 +90,7 @@ struct LiveTVViewModelTests {
         let preferences = LiveTVPreferencesMock()
         var saved = LiveTVPreferences()
         saved.lastPlaylistKey = LiveTVFavorite.playlistKey(for: older)
-        await preferences.save(saved)
+        preferences.save(saved)
         Container.shared.liveTVPreferencesService.register { preferences }
         let vm = ContentViewModel()
         await vm.restoreLiveTVPlaylist()
@@ -111,7 +111,7 @@ struct LiveTVViewModelTests {
         let updated = PlaylistParser.Stream(title: original.title, url: original.url,
                                              tvgLogo: "https://example.invalid/new-logo.png", tvgID: original.tvgID,
                                              tvgName: "Novo nome", groupTitle: nil)
-        await service.replace([playlist([updated])])
+        service.replace([playlist([updated])])
         await vm.load(content)
         #expect(vm.selectedChannel?.title == "Novo nome")
         #expect(vm.selectedChannel != previous)
@@ -143,13 +143,15 @@ struct LiveTVViewModelTests {
     }
 }
 
-private actor LiveTVPreferencesMock: LiveTVPreferencesServiceInterface {
+@MainActor
+private final class LiveTVPreferencesMock: LiveTVPreferencesServiceInterface {
     private var preferences = LiveTVPreferences()
     func load() -> LiveTVPreferences { preferences }
     func save(_ preferences: LiveTVPreferences) { self.preferences = preferences }
 }
 
-private actor LiveTVPlaylistMock: PlaylistServiceInterface {
+@MainActor
+private final class LiveTVPlaylistMock: PlaylistServiceInterface {
     var items: [PlaylistParser.Playlist]
     let guides: [String: ProgramGuide]
     init(playlists: [PlaylistParser.Playlist], guides: [String: ProgramGuide] = [:]) { items = playlists; self.guides = guides }
