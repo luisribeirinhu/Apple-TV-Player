@@ -70,8 +70,12 @@ actor LiveTVPreferencesService: LiveTVPreferencesServiceInterface {
     private let defaults: UserDefaults
     private let key = "tvOS.liveTV.preferences.v1"
 
-    init(suiteName: String? = nil) {
-        self.defaults = suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
+    nonisolated init(suiteName: String? = nil) {
+        if let suiteName {
+            self.defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        } else {
+            self.defaults = .standard
+        }
     }
 
     func load() -> LiveTVPreferences {

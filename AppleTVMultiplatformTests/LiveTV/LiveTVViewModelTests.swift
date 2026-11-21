@@ -3,6 +3,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import SwiftData
 import Testing
 @testable import Bro_Player
 
@@ -75,6 +76,27 @@ struct LiveTVViewModelTests {
         #expect(vm.programs.isEmpty)
         #expect(vm.currentProgram(at: .now) == nil)
         #expect(vm.player.player.currentItem === item)
+    }
+
+    @Test func startupRestoresLastPlaylistAndAddingChoosesNewest() async {
+        let database = DatabaseService(isStoredInMemoryOnly: true)
+        Container.shared.databaseService.register { database }
+        let older = PlaylistItem.Identity(name: "Anterior", date: Date(timeIntervalSince1970: 1))
+        let newer = PlaylistItem.Identity(name: "Nova", date: Date(timeIntervalSince1970: 2))
+        for identity in [older, newer] {
+            database.mainContext.insert(PlaylistItem(name: identity.name, date: identity.date, icon: nil,
+                                                    url: Data(), data: Data(), salt: nil, encrypted: false))
+        }
+        let preferences = LiveTVPreferencesMock()
+        var saved = LiveTVPreferences()
+        saved.lastPlaylistKey = LiveTVFavorite.playlistKey(for: older)
+        await preferences.save(saved)
+        Container.shared.liveTVPreferencesService.register { preferences }
+        let vm = ContentViewModel()
+        await vm.restoreLiveTVPlaylist()
+        #expect(vm.selectedPlaylist == older)
+        await vm.restoreLiveTVPlaylist(preferNewest: true)
+        #expect(vm.selectedPlaylist == newer)
     }
 
     private func makeViewModel(playlists: [PlaylistParser.Playlist], guides: [String: ProgramGuide] = [:]) -> LiveTVViewModel {

@@ -1,4 +1,5 @@
 #if os(tvOS)
+import AVFoundation
 import FactoryKit
 import Foundation
 import Observation

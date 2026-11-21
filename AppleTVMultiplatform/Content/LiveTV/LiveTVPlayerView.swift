@@ -1,4 +1,5 @@
 #if os(tvOS)
+import AVFoundation
 import AVKit
 import SwiftUI
 
