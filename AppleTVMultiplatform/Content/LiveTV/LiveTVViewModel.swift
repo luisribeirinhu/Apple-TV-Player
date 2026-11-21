@@ -16,6 +16,12 @@ final class LiveTVViewModel {
             let name = stream.tvgName?.trimmingCharacters(in: .whitespacesAndNewlines)
             return name?.isEmpty == false ? name! : stream.title
         }
+
+        static func == (lhs: Channel, rhs: Channel) -> Bool {
+            lhs.number == rhs.number && lhs.favoriteKey == rhs.favoriteKey &&
+            lhs.stream.id == rhs.stream.id && lhs.stream.tvgName == rhs.stream.tvgName &&
+            lhs.stream.tvgLogo == rhs.stream.tvgLogo
+        }
     }
 
     @ObservationIgnored @Injected(\.playlistService) private var playlistService
@@ -49,6 +55,7 @@ final class LiveTVViewModel {
         generation = request
         isLoading = true
         defer { if generation == request { isLoading = false } }
+        await flushPreferences()
         preferences = await preferencesService.load()
         player.player.automaticallyWaitsToMinimizeStalling = preferences.waitsToMinimizeStalling
         do {

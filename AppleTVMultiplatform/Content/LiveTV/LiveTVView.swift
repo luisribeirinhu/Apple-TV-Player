@@ -91,7 +91,7 @@ struct LiveTVView: View {
                 .onExitCommand { showsFullScreen = false }
         }
         .alert("TV em direto", isPresented: Binding(
-            get: { viewModel.message != nil },
+            get: { viewModel.message != nil && !showsSettings },
             set: { if !$0 { viewModel.message = nil } }
         )) {
             Button("OK", role: .cancel) { viewModel.message = nil }

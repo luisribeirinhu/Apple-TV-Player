@@ -65,6 +65,14 @@ struct LiveTVSettingsView: View {
             .navigationTitle("Definições")
         }
         .onDisappear { pin = "" }
+        .alert("Definições", isPresented: Binding(
+            get: { viewModel.message != nil },
+            set: { if !$0 { viewModel.message = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.message = nil }
+        } message: {
+            Text(viewModel.message ?? "")
+        }
         .onChange(of: showsAddPlaylist) { _, show in
             if show { dismiss(); onAddPlaylist() }
         }

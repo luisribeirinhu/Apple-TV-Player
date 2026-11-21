@@ -67,14 +67,18 @@ protocol LiveTVPreferencesServiceInterface: AnyObject, Sendable {
 }
 
 actor LiveTVPreferencesService: LiveTVPreferencesServiceInterface {
-    private let defaults: UserDefaults
+    private let suiteName: String?
     private let key = "tvOS.liveTV.preferences.v1"
 
-    nonisolated init(suiteName: String? = nil) {
+    init(suiteName: String? = nil) {
+        self.suiteName = suiteName
+    }
+
+    private var defaults: UserDefaults {
         if let suiteName {
-            self.defaults = UserDefaults(suiteName: suiteName) ?? .standard
+            return UserDefaults(suiteName: suiteName) ?? .standard
         } else {
-            self.defaults = .standard
+            return .standard
         }
     }
 

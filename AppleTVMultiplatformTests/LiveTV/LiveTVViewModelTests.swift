@@ -99,6 +99,25 @@ struct LiveTVViewModelTests {
         #expect(vm.selectedPlaylist == newer)
     }
 
+    @Test func refreshingMetadataUpdatesPresentationWithoutReplacingPlayerItem() async throws {
+        let original = stream("One")
+        let service = LiveTVPlaylistMock(playlists: [playlist([original])])
+        Container.shared.playlistService.register { service }
+        Container.shared.liveTVPreferencesService.register { LiveTVPreferencesMock() }
+        let vm = LiveTVViewModel(player: player())
+        await vm.load(content)
+        let previous = try #require(vm.selectedChannel)
+        let item = vm.player.player.currentItem
+        let updated = PlaylistParser.Stream(title: original.title, url: original.url,
+                                             tvgLogo: "https://example.invalid/new-logo.png", tvgID: original.tvgID,
+                                             tvgName: "Novo nome", groupTitle: nil)
+        await service.replace([playlist([updated])])
+        await vm.load(content)
+        #expect(vm.selectedChannel?.title == "Novo nome")
+        #expect(vm.selectedChannel != previous)
+        #expect(vm.player.player.currentItem === item)
+    }
+
     private func makeViewModel(playlists: [PlaylistParser.Playlist], guides: [String: ProgramGuide] = [:]) -> LiveTVViewModel {
         let service = LiveTVPlaylistMock(playlists: playlists, guides: guides)
         Container.shared.playlistService.register { service }

@@ -41,11 +41,12 @@ struct LiveTVLogoView: View {
             }
         }
         .accessibilityHidden(true)
-        .task(id: stream.id) {
+        .task(id: stream.id + (stream.tvgLogo ?? "")) {
             if let logo = stream.tvgLogo, let url = URL(string: logo) {
                 logoURL = url
             } else {
-                logoURL = await logo()
+                let resolved = await logo()
+                if !Task.isCancelled { logoURL = resolved }
             }
         }
     }
