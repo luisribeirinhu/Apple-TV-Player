@@ -142,7 +142,7 @@ extension PlaylistItem {
 
 extension PlaylistItem {
 
-     struct Content: Identifiable, Hashable, CustomStringConvertible, Sendable {
+     nonisolated struct Content: Identifiable, Hashable, CustomStringConvertible, Sendable {
         let identity: Identity
         let url: Data // plain url data ready to use (decrypted)
         let data: Data // plain data from url ready to use (decompressed and decrypted)
