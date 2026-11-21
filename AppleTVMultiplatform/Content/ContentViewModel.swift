@@ -17,6 +17,21 @@ final class ContentViewModel {
     var isShowingPlaylistDecryptPin: PlaylistItem.Identity?
 #if os(tvOS)
     var path: [PlaylistItem.Content] = []
+    private(set) var liveTVPlaylists: [PlaylistItem.Identity] = []
+
+    func loadLiveTVPlaylists() {
+        let fetch = FetchDescriptor<PlaylistItem>(sortBy: [.init(\.date, order: .reverse)])
+        liveTVPlaylists = ((try? databaseService.mainContext.fetch(fetch)) ?? []).compactMap(\.identity)
+    }
+
+    func restoreLiveTVPlaylist(preferNewest: Bool = false) async {
+        loadLiveTVPlaylists()
+        guard preferNewest || selectedPlaylist == nil else { return }
+        let preferences = await Container.shared.liveTVPreferencesService().load()
+        let saved = liveTVPlaylists.first { LiveTVFavorite.playlistKey(for: $0) == preferences.lastPlaylistKey }
+        let identity = preferNewest ? liveTVPlaylists.first : (saved ?? liveTVPlaylists.first)
+        if let identity, selectedPlaylist != identity { selectedPlaylist = identity }
+    }
 #endif
     private(set) var playlistListUpdate = UUID()
 
@@ -50,6 +65,7 @@ final class ContentViewModel {
                 isShowingPlaylistDecryptPin = identity
             } else {
                 let restoredPlaylist = try await playlistAddService.restorePlaylist(preparedPlaylist, pin: nil)
+                guard !Task.isCancelled, selectedPlaylist == identity else { return }
                 logger.info("Show Playlist", private: identity)
                 selectedPlaylistContent = restoredPlaylist.content
 #if os(tvOS)

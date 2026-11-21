@@ -265,7 +265,7 @@ private struct MacOsPlayerView: NSViewRepresentable {
     }
 }
 #elseif os(tvOS)
-private struct TvOSPlayerView: UIViewControllerRepresentable {
+struct TvOSPlayerView: UIViewControllerRepresentable {
 
     let player: AVPlayer
     let compact: Bool
@@ -274,26 +274,57 @@ private struct TvOSPlayerView: UIViewControllerRepresentable {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.allowsPictureInPicturePlayback = false
+        controller.showsPlaybackControls = !compact
         return controller
     }
 
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
-        uiViewController.player?.play()
+        if uiViewController.player !== player { uiViewController.player = player }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiViewController: Self.UIViewControllerType, context: Self.Context) -> CGSize? {
-        let multiplier: CGFloat = 2.8 / 3.0
-        guard compact, let width = proposal.width.map({ $0 * multiplier }) else { return nil }
+        guard compact, let width = proposal.width else { return nil }
         return .init(width: width, height: width * (9.0 / 16.0))
     }
 }
 
-private final class TvOSPlayer {
+@Observable
+final class TvOSPlayer {
 
     let player: AVPlayer
+    private(set) var errorMessage: String?
+    @ObservationIgnored private var currentURL: String?
+    @ObservationIgnored private var itemObservation: NSKeyValueObservation?
+    @ObservationIgnored private let makeItem: (URL) -> AVPlayerItem
+    private let automaticallyPlays: Bool
 
-    init(urlString: String) {
-        player = AVPlayer(url: URL(string: urlString)!)
+    init(urlString: String? = nil, automaticallyPlays: Bool = true,
+         makeItem: @escaping (URL) -> AVPlayerItem = { AVPlayerItem(url: $0) }) {
+        player = AVPlayer()
+        self.automaticallyPlays = automaticallyPlays
+        self.makeItem = makeItem
+        if let urlString { tune(urlString: urlString) }
+    }
+
+    func tune(urlString: String, force: Bool = false) {
+        guard force || currentURL != urlString else { return }
+        guard let url = URL(string: urlString),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            errorMessage = "O endereço deste canal não é válido."
+            return
+        }
+        currentURL = urlString
+        errorMessage = nil
+        let item = makeItem(url)
+        itemObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+            let failed = item.status == .failed
+            Task { @MainActor [weak self, weak item] in
+                guard let self, let item, self.player.currentItem === item else { return }
+                if failed { self.errorMessage = "Não foi possível reproduzir este canal." }
+            }
+        }
+        player.replaceCurrentItem(with: item)
+        if automaticallyPlays { player.play() }
     }
 
     func compactView() -> some View {

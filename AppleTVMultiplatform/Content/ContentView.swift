@@ -9,8 +9,7 @@ struct ContentView: View {
     @State private var viewModel = ContentViewModel()
     @InjectedObservable(\.logger) var logger
 #if os(tvOS)
-    @State private var reselectStream: Bool = false
-    @State var focusedStream: PlaylistParser.Stream?
+    @State private var showsPlaylistChooser = false
 #endif
     @State private var reloadCurrentProgram: UUID = .init()
 
@@ -20,13 +19,20 @@ struct ContentView: View {
                 addPlaylistView()
                     .onDisappear {
                         viewModel.updatePlaylists()
+#if os(tvOS)
+                        Task { await viewModel.restoreLiveTVPlaylist(preferNewest: true) }
+#endif
                     }
             }
+#if os(tvOS)
+            .task(id: viewModel.selectedPlaylist) { await viewModel.onPlaylistSelected() }
+#else
             .onChange(of: viewModel.selectedPlaylist) {
                 Task {
                     await viewModel.onPlaylistSelected()
                 }
             }
+#endif
             .onChange(of: playlistListUpdate) {
                 viewModel.updatePlaylists()
             }
@@ -67,57 +73,22 @@ struct ContentView: View {
     }
 #if os(tvOS)
     private func contentView() -> some View {
-        NavigationStack(path: $viewModel.path) {
-            VStack {
-                PlaylistsView(
-                    selectedPlaylist: $viewModel.selectedPlaylist
-                )
-                .frame(width: UIScreen.main.bounds.width / 2)
-
-                AddButtonView(isToolbar: false) {
-                    viewModel.onAddPlaylist()
-                }
-            }
-            .id(viewModel.playlistListUpdate)
-            .navigationDestination(for: PlaylistItem.Content.self) { content in
-                HStack(spacing: 0) {
-                    PlaylistView(
-                        content: content,
-                        selectedStream: $viewModel.selectedPlaylistStream,
-                        focusedStream: $focusedStream,
-                        reselectStream: $reselectStream,
-                        reloadCurrentProgram: $reloadCurrentProgram
-                    )
-                    .frame(width: UIScreen.main.bounds.width / 2.8)
-                    .padding(32)
-                    .ignoresSafeArea()
-                    .onAppear {
-                        UIApplication.shared.isIdleTimerDisabled = true
-                    }
-                    .onDisappear {
-                        UIApplication.shared.isIdleTimerDisabled = false
-                    }
-
-                    if let stream = viewModel.selectedPlaylistStream {
-                        StreamView(
-                            content: content,
-                            stream: stream,
-                            reselectStream: $reselectStream,
-                            focusedStream: $focusedStream,
-                            reloadCurrentProgram: $reloadCurrentProgram
-                        )
-                        .id(stream)
-                        .padding([.top], 32)
-                        .ignoresSafeArea()
-                    } else {
-                        Spacer()
+        LiveTVView(
+            content: viewModel.selectedPlaylistContent,
+            onAddPlaylist: { viewModel.onAddPlaylist() },
+            onChangePlaylist: { showsPlaylistChooser = true }
+        )
+        .task { await viewModel.restoreLiveTVPlaylist() }
+        .sheet(isPresented: $showsPlaylistChooser) {
+            NavigationStack {
+                List(viewModel.liveTVPlaylists) { identity in
+                    Button(identity.name) {
+                        viewModel.selectedPlaylist = identity
+                        showsPlaylistChooser = false
                     }
                 }
-                .id(content.id)
-                .ignoresSafeArea()
-                .onDisappear {
-                    viewModel.selectedPlaylist = nil
-                }
+                .navigationTitle("Escolher lista")
+                .task { viewModel.loadLiveTVPlaylists() }
             }
         }
     }

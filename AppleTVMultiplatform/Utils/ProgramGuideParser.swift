@@ -71,7 +71,9 @@ actor ProgramGuideParser {
             await self.set(step: step)
         }
     })
-    private let dateFormatter = ManualDateFormatter()
+    nonisolated static func xmlTVDate(from string: String) -> Date? {
+        ManualDateFormatter().date(from: string)
+    }
     private let onProgress: @Sendable ([Progress], Progress, isolated ProgramGuideParser) -> Void
     private var progressSteps: [Progress] = []
     private var progress: Progress = .start {
@@ -188,8 +190,8 @@ private extension ProgramGuideParser {
                     let title = normalized(programNode.at_xpath("title")?.text),
                     let startValue = normalized(programNode["start"]),
                     let stopValue = normalized(programNode["stop"]),
-                    let startDate = dateFormatter.date(from: startValue),
-                    let stopDate = dateFormatter.date(from: stopValue)
+                    let startDate = Self.xmlTVDate(from: startValue),
+                    let stopDate = Self.xmlTVDate(from: stopValue)
                 else {
                     continue
                 }
@@ -290,8 +292,17 @@ nonisolated private struct ManualDateFormatter {
         components.hour = hour
         components.minute = minute
         components.second = second
-        components.timeZone = TimeZone(secondsFromGMT: 0)
-        
-        return Calendar.current.date(from: components)
+        let suffix = string[secondEnd...].trimmingCharacters(in: .whitespaces)
+        var offset = 0
+        if !suffix.isEmpty {
+            guard suffix.count == 5, let sign = suffix.first, sign == "+" || sign == "-",
+                  let hours = Int(suffix.dropFirst().prefix(2)),
+                  let minutes = Int(suffix.suffix(2)), hours <= 23, minutes < 60 else { return nil }
+            offset = (hours * 3600 + minutes * 60) * (sign == "-" ? -1 : 1)
+        }
+        // XMLTV specifies UTC when the offset is absent. Use a Gregorian calendar
+        // regardless of the calendar selected in the device's regional settings.
+        components.timeZone = TimeZone(secondsFromGMT: offset)
+        return Calendar(identifier: .gregorian).date(from: components)
     }
 }

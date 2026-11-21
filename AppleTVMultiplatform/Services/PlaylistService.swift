@@ -101,8 +101,8 @@ actor PlaylistService: PlaylistServiceInterface {
         for content: PlaylistItem.Content,
         stream: PlaylistParser.Stream
     ) async -> ProgramGuide? {
-        let candidateNames = streamCandidateNames(for: stream)
-        guard !candidateNames.isEmpty else {
+        let candidateNames = Self.streamCandidateNames(for: stream)
+        guard !candidateNames.isEmpty || Self.normalized(stream.tvgID) != nil else {
             return nil
         }
 
@@ -114,8 +114,18 @@ actor PlaylistService: PlaylistServiceInterface {
             guides = cache[cacheKey(for: content)]?.programGuides ?? []
         }
 
+        return Self.matchingGuide(for: stream, in: guides)
+    }
+
+    // XMLTV ids are authoritative; display names are only a compatibility fallback.
+    nonisolated static func matchingGuide(for stream: PlaylistParser.Stream, in guides: [ProgramGuide]) -> ProgramGuide? {
+        if let id = Self.normalized(stream.tvgID),
+           let guide = guides.first(where: { Self.normalized($0.channel.id) == id }) {
+            return guide
+        }
+        let candidateNames = Self.streamCandidateNames(for: stream)
         let exact = guides.first { guide in
-            guard let displayName = normalized(guide.channel.displayName) else {
+            guard let displayName = Self.normalized(guide.channel.displayName) else {
                 return false
             }
 
@@ -125,7 +135,7 @@ actor PlaylistService: PlaylistServiceInterface {
             return exact
         }
         return guides.first { guide in
-            guard let displayName = normalized(guide.channel.displayName) else {
+            guard let displayName = Self.normalized(guide.channel.displayName) else {
                 return false
             }
             // Cases like "Channel Name" vs "Channel Name HD" or vise versa.
@@ -287,7 +297,7 @@ private extension PlaylistService {
         var canUseCacheDirectory = true
 
         for playlist in playlists {
-            guard let source = normalized(playlist.imageURL) else {
+            guard let source = Self.normalized(playlist.imageURL) else {
                 resolvedPlaylists.append(playlist)
                 continue
             }
@@ -559,7 +569,7 @@ private extension PlaylistService {
         var seenNames = Set<String>()
 
         for value in [stream.tvgID, stream.tvgLogo, stream.tvgName, stream.title] {
-            guard let name = normalized(value), seenNames.insert(name).inserted else {
+            guard let name = Self.normalized(value), seenNames.insert(name).inserted else {
                 continue
             }
 
@@ -579,7 +589,7 @@ private extension PlaylistService {
     }
 
     func hasResolvedImageURL(_ value: String?) -> Bool {
-        guard let value = normalized(value), let url = URL(string: value) else {
+        guard let value = Self.normalized(value), let url = URL(string: value) else {
             return false
         }
 
@@ -629,7 +639,7 @@ private extension PlaylistService {
     func resolvedImageCacheURLs(for playlists: [PlaylistParser.Playlist]) -> Set<URL> {
         Set(
             playlists.compactMap { playlist in
-                guard let source = normalized(playlist.imageURL) else {
+                guard let source = Self.normalized(playlist.imageURL) else {
                     return nil
                 }
 
@@ -639,7 +649,7 @@ private extension PlaylistService {
     }
 
     func programGuideSource(for playlist: PlaylistParser.Playlist) -> String? {
-        normalized(playlist.tvgURL) ?? normalized(playlist.xTvgURL)
+        Self.normalized(playlist.tvgURL) ?? Self.normalized(playlist.xTvgURL)
     }
 
     func guideCacheURL(for source: String) -> URL {
@@ -704,16 +714,16 @@ private extension PlaylistService {
             || path.hasSuffix(".gz")
     }
 
-    func streamCandidateNames(for stream: PlaylistParser.Stream) -> Set<String> {
+    nonisolated private static func streamCandidateNames(for stream: PlaylistParser.Stream) -> Set<String> {
         Set(
             [
-                normalized(stream.tvgName),
-                normalized(stream.title)
+                Self.normalized(stream.tvgName),
+                Self.normalized(stream.title)
             ].compactMap { $0 }
         )
     }
 
-    func normalized(_ value: String?) -> String? {
+    nonisolated private static func normalized(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else {
             return nil

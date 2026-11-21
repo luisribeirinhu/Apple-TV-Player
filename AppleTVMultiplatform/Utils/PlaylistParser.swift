@@ -150,6 +150,18 @@ actor PlaylistParser {
         return playlists
     }
 
+#if os(tvOS)
+    func replacingProgramGuideSource(_ source: String) -> Data {
+        let pattern = #"\s+(url-tvg|x-tvg-url)=("[^"]*"|[^\s,]+)"#
+        let lines = content.components(separatedBy: .newlines).map { line in
+            guard line.hasPrefix(Self.m3uHeader) else { return line }
+            let header = line.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+            return source.isEmpty ? header : header + " url-tvg=\"\(source)\""
+        }
+        return Data(lines.joined(separator: "\n").utf8)
+    }
+#endif
+
     private static func normalize(_ string: String) -> String {
         string
             .replacingOccurrences(of: "\u{feff}", with: "")
